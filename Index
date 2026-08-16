@@ -254,8 +254,8 @@
 
 <!-- ============ CONFIG(ここをSupabaseの値に書き換えてください) ============ -->
 <script>
-  const SUPABASE_URL = "YOUR_SUPABASE_URL";
-  const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+  const SUPABASE_URL = "https://beobxykgxmpgdcquakpq.supabase.co/rest/v1/";
+  const SUPABASE_ANON_KEY = "sb_publishable_wRCO1Dfxr6dILI-B5odJBw_M2V77UVR";
   const BUCKET_NAME = "recipe-images";
 </script>
 
