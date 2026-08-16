@@ -215,6 +215,9 @@
   /* 詳細モーダル */
   .detail-img{width:100%;max-height:240px;object-fit:cover;border-radius:5px;margin-bottom:14px;}
   .detail-meta{display:flex;gap:16px;color:#6b6250;font-size:.85rem;margin-bottom:12px;}
+  .source-link{margin:2px 0 10px;}
+  .source-link a{color:var(--teal);font-weight:700;font-size:.88rem;text-decoration:none;}
+  .source-link a:hover{text-decoration:underline;}
   .detail-section h4{margin:16px 0 6px;font-size:.95rem;color:#54503f;}
   .steps-list{padding-left:20px;}
   .steps-list li{margin-bottom:8px;line-height:1.5;}
@@ -332,6 +335,11 @@
         <label>材料</label>
         <div id="ingredientRows"></div>
         <button type="button" class="add-row-btn" id="addIngredientBtn">＋ 材料を追加</button>
+      </div>
+
+      <div class="field">
+        <label for="sourceUrlInput">レシピ元URL</label>
+        <input type="text" id="sourceUrlInput" placeholder="https://example.com/recipe/123">
       </div>
 
       <div class="field">
@@ -576,6 +584,7 @@ function openForm(id=null){
     document.getElementById("servingsInput").value = r.servings || "";
     document.getElementById("cookTimeInput").value = r.cook_time || "";
     document.getElementById("stepsInput").value = (r.steps || []).join("\n");
+    document.getElementById("sourceUrlInput").value = r.source_url || "";
     (r.ingredients || []).forEach(i => addIngredientRow(i.name, i.amount, i.unit));
     if (r.image_url) {
       const img = document.getElementById("imgPreview");
@@ -626,6 +635,11 @@ async function saveRecipe(e){
     const tags = document.getElementById("tagsInput").value
       .split(",").map(t => t.trim()).filter(Boolean);
 
+    let sourceUrl = document.getElementById("sourceUrlInput").value.trim();
+    if (sourceUrl && !/^https?:\/\//i.test(sourceUrl)) {
+      sourceUrl = "https://" + sourceUrl;
+    }
+
     const payload = {
       title: document.getElementById("titleInput").value.trim(),
       category: document.getElementById("categoryInput").value.trim() || null,
@@ -634,6 +648,7 @@ async function saveRecipe(e){
       cook_time: Number(document.getElementById("cookTimeInput").value) || null,
       ingredients,
       steps,
+      source_url: sourceUrl || null,
     };
 
     if (pendingImageFile) {
@@ -681,6 +696,9 @@ function openDetail(id){
   ).join("");
   const steps = (r.steps || []).map(s => `<li>${escapeHtml(s)}</li>`).join("");
   const tags = (r.tags || []).map(t => `<span class="tag">#${escapeHtml(t)}</span>`).join(" ");
+  const sourceLink = r.source_url
+    ? `<p class="source-link"><a href="${escapeHtml(r.source_url)}" target="_blank" rel="noopener noreferrer">🔗 レシピ元を見る</a></p>`
+    : "";
 
   document.getElementById("detailContent").innerHTML = `
     ${img}
@@ -691,6 +709,7 @@ function openDetail(id){
       ${r.servings ? `<span>👥 ${r.servings}人分</span>` : ""}
     </div>
     <div class="card-tags">${tags}</div>
+    ${sourceLink}
     <div class="detail-section">
       <h4>材料</h4>
       <ul class="ing-list">${ing || "<li>未登録</li>"}</ul>
