@@ -1,1 +1,818 @@
+<!-- 構造：<!DOCTYPE html> 〜 </html> まで。CONFIG(Supabase設定) → STYLE → BODY(ヘッダー/フィルター/カード一覧/3つのモーダル) → SCRIPT(データ取得・CRUD・検索・買い物リスト) -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>レシピ帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Yomogi&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* ============ トークン ============ */
+  :root{
+    --bg:#2b2620;
+    --bg-soft:#332c23;
+    --card:#f4ecd8;
+    --card-edge:#e3d7ba;
+    --ink:#2b2620;
+    --chalk:#f2e9d8;
+    --chalk-dim:#cabfa8;
+    --tomato:#c1502e;
+    --basil:#7a8b5a;
+    --mustard:#d9a441;
+    --teal:#4a7a78;
+    --plum:#8b5a6b;
+    --line:rgba(242,233,216,.14);
+    --shadow:0 10px 24px rgba(0,0,0,.35);
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at 20% -10%, rgba(255,255,255,.03), transparent 40%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 3px),
+      var(--bg);
+    color:var(--chalk);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    min-height:100vh;
+    padding-bottom:80px;
+  }
+  h1,h2,h3,.hand{font-family:'Yomogi', cursive;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  .hidden{display:none !important;}
 
+  /* ============ ヘッダー ============ */
+  header{
+    padding:36px 24px 20px;
+    max-width:1100px;
+    margin:0 auto;
+  }
+  header h1{
+    font-size:2.4rem;
+    margin:0 0 4px;
+    color:var(--chalk);
+    letter-spacing:.02em;
+  }
+  header h1 .egg{color:var(--mustard);}
+  header p.sub{margin:0 0 22px;color:var(--chalk-dim);font-size:.92rem;}
+
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    align-items:center;
+  }
+  .search-wrap{
+    position:relative;
+    flex:1 1 280px;
+  }
+  .search-wrap input{
+    width:100%;
+    padding:12px 14px 12px 38px;
+    border-radius:var(--radius);
+    border:1px solid var(--line);
+    background:var(--bg-soft);
+    color:var(--chalk);
+    font-size:.95rem;
+  }
+  .search-wrap input::placeholder{color:var(--chalk-dim);}
+  .search-wrap svg{
+    position:absolute;left:12px;top:50%;transform:translateY(-50%);
+    width:16px;height:16px;stroke:var(--chalk-dim);
+  }
+  .btn{
+    border:none;
+    border-radius:var(--radius);
+    padding:12px 18px;
+    font-weight:700;
+    font-size:.92rem;
+    background:var(--tomato);
+    color:var(--chalk);
+    transition:transform .12s ease, filter .12s ease;
+  }
+  .btn:hover{filter:brightness(1.08);}
+  .btn:active{transform:scale(.97);}
+  .btn.secondary{background:var(--bg-soft);border:1px solid var(--line);}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--chalk-dim);}
+  .btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--mustard); outline-offset:2px;
+  }
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
+  .chip{
+    padding:6px 13px;
+    border-radius:999px;
+    font-size:.82rem;
+    border:1px solid var(--line);
+    color:var(--chalk-dim);
+    background:transparent;
+  }
+  .chip.active{background:var(--mustard);color:var(--ink);border-color:var(--mustard);font-weight:700;}
+
+  /* ============ カード一覧 ============ */
+  main{max-width:1100px;margin:0 auto;padding:8px 24px 24px;}
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(240px,1fr));
+    gap:22px;
+    margin-top:20px;
+  }
+  .card{
+    position:relative;
+    background:var(--card);
+    color:var(--ink);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    cursor:pointer;
+    transform:rotate(var(--tilt,0deg));
+    transition:transform .15s ease, box-shadow .15s ease;
+    border:1px solid var(--card-edge);
+  }
+  .card:hover{transform:rotate(0deg) translateY(-3px);box-shadow:0 16px 30px rgba(0,0,0,.4);}
+  .tape{
+    position:absolute;top:-6px;left:20px;
+    width:64px;height:22px;
+    opacity:.9;
+    transform:rotate(-3deg);
+    border-radius:1px;
+  }
+  .card .thumb{
+    width:100%;height:130px;object-fit:cover;
+    background:#ded2b3;
+    display:block;
+  }
+  .thumb-fallback{
+    width:100%;height:130px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:2rem;background:#ded2b3;
+  }
+  .card-body{padding:14px 16px 16px;}
+  .card-body h3{margin:2px 0 6px;font-size:1.15rem;line-height:1.3;}
+  .card-meta{display:flex;gap:10px;font-size:.78rem;color:#6b6250;margin-bottom:8px;}
+  .card-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
+  .tag{font-size:.7rem;padding:3px 8px;border-radius:999px;background:rgba(43,38,32,.08);color:#4a4436;}
+  .card-actions{display:flex;justify-content:space-between;align-items:center;}
+  .select-box{display:flex;align-items:center;gap:6px;font-size:.78rem;color:#6b6250;}
+  .icon-btn{
+    background:transparent;border:none;padding:6px;border-radius:4px;color:#6b6250;
+  }
+  .icon-btn:hover{background:rgba(43,38,32,.08);}
+
+  .empty{
+    text-align:center;padding:60px 20px;color:var(--chalk-dim);
+  }
+  .empty h3{font-size:1.4rem;margin-bottom:6px;color:var(--chalk);}
+
+  /* ============ 選択中バー(買い物リスト) ============ */
+  .float-bar{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+    background:var(--bg-soft);
+    border:1px solid var(--line);
+    color:var(--chalk);
+    padding:12px 16px;border-radius:999px;
+    display:flex;align-items:center;gap:14px;
+    box-shadow:var(--shadow);
+    z-index:40;
+  }
+
+  /* ============ モーダル共通 ============ */
+  .overlay{
+    position:fixed;inset:0;background:rgba(20,17,13,.65);
+    display:flex;align-items:flex-start;justify-content:center;
+    padding:40px 16px;overflow-y:auto;z-index:100;
+  }
+  .modal{
+    background:var(--card);color:var(--ink);
+    width:100%;max-width:620px;border-radius:6px;
+    box-shadow:var(--shadow);padding:26px 26px 24px;
+  }
+  .modal h2{margin:0 0 18px;font-size:1.6rem;}
+  .modal-close{
+    float:right;background:none;border:none;font-size:1.3rem;color:#6b6250;
+  }
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:.8rem;font-weight:700;color:#54503f;margin-bottom:5px;}
+  .field input[type=text], .field input[type=number], .field select, .field textarea{
+    width:100%;padding:9px 10px;border:1px solid var(--card-edge);border-radius:4px;
+    font-family:inherit;font-size:.92rem;background:#fffdf7;color:var(--ink);
+  }
+  .field textarea{resize:vertical;min-height:90px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .ing-row{display:grid;grid-template-columns:1fr 90px 70px 30px;gap:8px;margin-bottom:8px;align-items:center;}
+  .ing-row input{padding:8px 9px;border:1px solid var(--card-edge);border-radius:4px;font-size:.88rem;}
+  .remove-row{background:none;border:none;color:var(--tomato);font-size:1.1rem;}
+  .add-row-btn{font-size:.82rem;color:var(--teal);background:none;border:1px dashed var(--teal);padding:7px 12px;border-radius:4px;}
+  .img-preview{width:100%;max-height:160px;object-fit:cover;border-radius:4px;margin-top:8px;display:none;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+  .danger-btn{background:var(--tomato);color:#fff;}
+
+  /* 詳細モーダル */
+  .detail-img{width:100%;max-height:240px;object-fit:cover;border-radius:5px;margin-bottom:14px;}
+  .detail-meta{display:flex;gap:16px;color:#6b6250;font-size:.85rem;margin-bottom:12px;}
+  .detail-section h4{margin:16px 0 6px;font-size:.95rem;color:#54503f;}
+  .steps-list{padding-left:20px;}
+  .steps-list li{margin-bottom:8px;line-height:1.5;}
+  .ing-list{list-style:none;padding:0;}
+  .ing-list li{padding:6px 0;border-bottom:1px dashed var(--card-edge);display:flex;justify-content:space-between;font-size:.92rem;}
+
+  /* 買い物リストモーダル */
+  .shop-list{list-style:none;padding:0;margin:0 0 16px;}
+  .shop-list li{
+    display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px dashed var(--card-edge);
+    font-size:.94rem;
+  }
+  .shop-list li.checked span{text-decoration:line-through;color:#9a9280;}
+
+  /* toast */
+  #toast{
+    position:fixed;top:20px;left:50%;transform:translateX(-50%);
+    background:var(--basil);color:#fff;padding:11px 20px;border-radius:6px;
+    font-size:.88rem;box-shadow:var(--shadow);z-index:200;transition:opacity .25s ease;
+  }
+  #toast.error{background:var(--tomato);}
+
+  #configNotice{
+    max-width:1100px;margin:16px auto 0;padding:14px 18px;background:var(--bg-soft);
+    border:1px solid var(--mustard);border-radius:6px;color:var(--chalk-dim);font-size:.85rem;
+    line-height:1.6;
+  }
+  #configNotice code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:3px;}
+
+  @media (max-width:520px){
+    .row2,.row3{grid-template-columns:1fr;}
+    .ing-row{grid-template-columns:1fr 1fr 1fr;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ CONFIG(ここをSupabaseの値に書き換えてください) ============ -->
+<script>
+  const SUPABASE_URL = "YOUR_SUPABASE_URL";
+  const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+  const BUCKET_NAME = "recipe-images";
+</script>
+
+<header>
+  <h1><span class="egg">🍳</span> レシピ帳</h1>
+  <p class="sub">材料・作り方をためて、検索して、買い物リストまでつくる自分専用のレシピ帳。</p>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" placeholder="料理名・材料・タグで検索">
+    </div>
+    <button class="btn" id="newRecipeBtn">＋ 新しいレシピ</button>
+  </div>
+
+  <div class="chips" id="categoryChips"></div>
+</header>
+
+<div id="configNotice" class="hidden">
+  ⚠️ Supabaseの接続先が未設定です。<code>index.html</code> 冒頭の
+  <code>SUPABASE_URL</code> と <code>SUPABASE_ANON_KEY</code> を、
+  同梱の <code>schema.sql</code> を実行したプロジェクトの値に書き換えてください。
+</div>
+
+<main>
+  <div class="grid" id="recipeGrid"></div>
+  <div class="empty hidden" id="emptyState">
+    <h3>まだレシピがありません</h3>
+    <p>「＋ 新しいレシピ」から最初の一品を登録してみましょう。</p>
+  </div>
+</main>
+
+<!-- ============ 選択中フローティングバー ============ -->
+<div class="float-bar hidden" id="floatBar">
+  <span id="selectCount">0件選択中</span>
+  <button class="btn secondary" id="clearSelectBtn">選択解除</button>
+  <button class="btn" id="makeShopBtn">🛒 買い物リストを作成</button>
+</div>
+
+<!-- ============ 追加/編集モーダル ============ -->
+<div class="overlay hidden" id="formOverlay">
+  <div class="modal">
+    <button class="modal-close" id="closeFormBtn" aria-label="閉じる">✕</button>
+    <h2 id="formTitle">新しいレシピ</h2>
+    <form id="recipeForm">
+      <input type="hidden" id="recipeId">
+      <div class="field">
+        <label for="titleInput">料理名 *</label>
+        <input type="text" id="titleInput" required placeholder="例：肉じゃが">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="categoryInput">カテゴリ</label>
+          <input type="text" id="categoryInput" list="categoryList" placeholder="例：和食・主菜">
+          <datalist id="categoryList"></datalist>
+        </div>
+        <div class="field">
+          <label for="tagsInput">タグ(カンマ区切り)</label>
+          <input type="text" id="tagsInput" placeholder="例：作り置き, 節約">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="servingsInput">人数分</label>
+          <input type="number" id="servingsInput" min="1" placeholder="2">
+        </div>
+        <div class="field">
+          <label for="cookTimeInput">調理時間(分)</label>
+          <input type="number" id="cookTimeInput" min="1" placeholder="30">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>材料</label>
+        <div id="ingredientRows"></div>
+        <button type="button" class="add-row-btn" id="addIngredientBtn">＋ 材料を追加</button>
+      </div>
+
+      <div class="field">
+        <label for="stepsInput">作り方(1行につき1手順)</label>
+        <textarea id="stepsInput" placeholder="玉ねぎを切る&#10;油で炒める&#10;調味料を加えて煮る"></textarea>
+      </div>
+
+      <div class="field">
+        <label for="imageInput">写真</label>
+        <input type="file" id="imageInput" accept="image/*">
+        <img id="imgPreview" class="img-preview" alt="">
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="cancelFormBtn">キャンセル</button>
+        <button type="submit" class="btn" id="saveBtn">保存する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ 詳細モーダル ============ -->
+<div class="overlay hidden" id="detailOverlay">
+  <div class="modal">
+    <button class="modal-close" id="closeDetailBtn" aria-label="閉じる">✕</button>
+    <div id="detailContent"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="editFromDetailBtn">編集する</button>
+      <button class="btn danger-btn" id="deleteFromDetailBtn">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 買い物リストモーダル ============ -->
+<div class="overlay hidden" id="shopOverlay">
+  <div class="modal">
+    <button class="modal-close" id="closeShopBtn" aria-label="閉じる">✕</button>
+    <h2>🛒 買い物リスト</h2>
+    <ul class="shop-list" id="shopList"></ul>
+    <div class="modal-actions">
+      <button class="btn secondary" id="copyShopBtn">コピーする</button>
+      <button class="btn" id="printShopBtn">印刷する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= STATE ================= */
+let sb = null;
+let recipes = [];
+let activeCategory = "すべて";
+let searchQuery = "";
+let selectedIds = new Set();
+let editingId = null;
+let pendingImageFile = null;
+
+const ACCENTS = ["#c1502e", "#7a8b5a", "#d9a441", "#4a7a78", "#8b5a6b"];
+const TILTS = [-1.4, 0.8, -0.6, 1.2, -1.8, 0.4];
+
+/* ================= INIT ================= */
+function initSupabase(){
+  if (SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_ANON_KEY === "YOUR_SUPABASE_ANON_KEY") {
+    document.getElementById("configNotice").classList.remove("hidden");
+    return false;
+  }
+  const { createClient } = window.supabase;
+  sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return true;
+}
+
+function hashColor(str){
+  let h = 0;
+  for (let i = 0; i < (str || "").length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return ACCENTS[h % ACCENTS.length];
+}
+function hashTilt(id){
+  let h = 0;
+  for (let i = 0; i < (id || "").length; i++) h = (h * 17 + id.charCodeAt(i)) >>> 0;
+  return TILTS[h % TILTS.length];
+}
+function escapeHtml(str){
+  return (str ?? "").toString()
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;");
+}
+function showToast(msg, isError=false){
+  const t = document.getElementById("toast");
+  if (t) t.remove();
+  const div = document.createElement("div");
+  div.id = "toast";
+  div.className = isError ? "error" : "";
+  div.textContent = msg;
+  document.body.appendChild(div);
+  setTimeout(() => { div.style.opacity = "0"; setTimeout(() => div.remove(), 300); }, 2400);
+}
+
+/* ================= DATA LOAD ================= */
+async function loadRecipes(){
+  if (!sb) return;
+  const { data, error } = await sb.from("recipes").select("*").order("created_at", { ascending: false });
+  if (error) { showToast("読み込みに失敗しました: " + error.message, true); return; }
+  recipes = data || [];
+  renderCategoryChips();
+  renderGrid();
+}
+
+function renderCategoryChips(){
+  const wrap = document.getElementById("categoryChips");
+  const cats = ["すべて", ...new Set(recipes.map(r => r.category).filter(Boolean))];
+  wrap.innerHTML = cats.map(c =>
+    `<button class="chip ${c === activeCategory ? "active" : ""}" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+  ).join("");
+  wrap.querySelectorAll(".chip").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeCategory = btn.dataset.cat;
+      renderCategoryChips();
+      renderGrid();
+    });
+  });
+  // datalist for form
+  const dl = document.getElementById("categoryList");
+  dl.innerHTML = [...new Set(recipes.map(r => r.category).filter(Boolean))]
+    .map(c => `<option value="${escapeHtml(c)}">`).join("");
+}
+
+function getFiltered(){
+  const q = searchQuery.trim().toLowerCase();
+  return recipes.filter(r => {
+    if (activeCategory !== "すべて" && r.category !== activeCategory) return false;
+    if (!q) return true;
+    const inTitle = (r.title || "").toLowerCase().includes(q);
+    const inTags = (r.tags || []).some(t => t.toLowerCase().includes(q));
+    const inIng = (r.ingredients || []).some(i => (i.name || "").toLowerCase().includes(q));
+    return inTitle || inTags || inIng;
+  });
+}
+
+/* ================= RENDER GRID ================= */
+function renderGrid(){
+  const list = getFiltered();
+  const grid = document.getElementById("recipeGrid");
+  const empty = document.getElementById("emptyState");
+
+  if (list.length === 0) {
+    grid.innerHTML = "";
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  grid.innerHTML = list.map(r => {
+    const tilt = hashTilt(r.id);
+    const tapeColor = hashColor(r.category || r.title);
+    const thumb = r.image_url
+      ? `<img class="thumb" src="${escapeHtml(r.image_url)}" alt="${escapeHtml(r.title)}">`
+      : `<div class="thumb-fallback">🍽️</div>`;
+    const tags = (r.tags || []).slice(0, 4).map(t => `<span class="tag">#${escapeHtml(t)}</span>`).join("");
+    const checked = selectedIds.has(r.id) ? "checked" : "";
+    return `
+      <div class="card" style="--tilt:${tilt}deg" data-id="${r.id}">
+        <div class="tape" style="background:${tapeColor}"></div>
+        ${thumb}
+        <div class="card-body">
+          <h3>${escapeHtml(r.title)}</h3>
+          <div class="card-meta">
+            ${r.category ? `<span>${escapeHtml(r.category)}</span>` : ""}
+            ${r.cook_time ? `<span>⏱ ${r.cook_time}分</span>` : ""}
+            ${r.servings ? `<span>👥 ${r.servings}人分</span>` : ""}
+          </div>
+          <div class="card-tags">${tags}</div>
+          <div class="card-actions">
+            <label class="select-box" onclick="event.stopPropagation()">
+              <input type="checkbox" class="select-cb" data-id="${r.id}" ${checked}> リストに追加
+            </label>
+            <div>
+              <button class="icon-btn edit-btn" data-id="${r.id}" title="編集" onclick="event.stopPropagation()">✏️</button>
+              <button class="icon-btn del-btn" data-id="${r.id}" title="削除" onclick="event.stopPropagation()">🗑️</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  grid.querySelectorAll(".card").forEach(card => {
+    card.addEventListener("click", () => openDetail(card.dataset.id));
+  });
+  grid.querySelectorAll(".select-cb").forEach(cb => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) selectedIds.add(cb.dataset.id); else selectedIds.delete(cb.dataset.id);
+      updateFloatBar();
+    });
+  });
+  grid.querySelectorAll(".edit-btn").forEach(b => {
+    b.addEventListener("click", () => openForm(b.dataset.id));
+  });
+  grid.querySelectorAll(".del-btn").forEach(b => {
+    b.addEventListener("click", () => deleteRecipe(b.dataset.id));
+  });
+}
+
+function updateFloatBar(){
+  const bar = document.getElementById("floatBar");
+  document.getElementById("selectCount").textContent = `${selectedIds.size}件選択中`;
+  bar.classList.toggle("hidden", selectedIds.size === 0);
+}
+
+/* ================= FORM MODAL (追加/編集) ================= */
+function ingredientRowHtml(name="", amount="", unit=""){
+  return `
+    <div class="ing-row">
+      <input type="text" class="ing-name" placeholder="材料名" value="${escapeHtml(name)}">
+      <input type="text" class="ing-amount" placeholder="分量" value="${escapeHtml(amount)}">
+      <input type="text" class="ing-unit" placeholder="単位" value="${escapeHtml(unit)}">
+      <button type="button" class="remove-row" aria-label="この行を削除">✕</button>
+    </div>`;
+}
+
+function addIngredientRow(name="", amount="", unit=""){
+  const wrap = document.getElementById("ingredientRows");
+  const div = document.createElement("div");
+  div.innerHTML = ingredientRowHtml(name, amount, unit);
+  const row = div.firstElementChild;
+  row.querySelector(".remove-row").addEventListener("click", () => row.remove());
+  wrap.appendChild(row);
+}
+
+function openForm(id=null){
+  editingId = id;
+  pendingImageFile = null;
+  document.getElementById("recipeForm").reset();
+  document.getElementById("ingredientRows").innerHTML = "";
+  document.getElementById("imgPreview").classList.add("hidden");
+  document.getElementById("imgPreview").src = "";
+
+  if (id) {
+    const r = recipes.find(x => x.id === id);
+    document.getElementById("formTitle").textContent = "レシピを編集";
+    document.getElementById("recipeId").value = r.id;
+    document.getElementById("titleInput").value = r.title || "";
+    document.getElementById("categoryInput").value = r.category || "";
+    document.getElementById("tagsInput").value = (r.tags || []).join(", ");
+    document.getElementById("servingsInput").value = r.servings || "";
+    document.getElementById("cookTimeInput").value = r.cook_time || "";
+    document.getElementById("stepsInput").value = (r.steps || []).join("\n");
+    (r.ingredients || []).forEach(i => addIngredientRow(i.name, i.amount, i.unit));
+    if (r.image_url) {
+      const img = document.getElementById("imgPreview");
+      img.src = r.image_url;
+      img.classList.remove("hidden");
+    }
+  } else {
+    document.getElementById("formTitle").textContent = "新しいレシピ";
+    document.getElementById("recipeId").value = "";
+    addIngredientRow();
+  }
+  document.getElementById("formOverlay").classList.remove("hidden");
+}
+
+function closeForm(){
+  document.getElementById("formOverlay").classList.add("hidden");
+}
+
+async function uploadImage(file){
+  const ext = file.name.split(".").pop();
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const { error } = await sb.storage.from(BUCKET_NAME).upload(path, file, { upsert: false });
+  if (error) throw error;
+  const { data } = sb.storage.from(BUCKET_NAME).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+async function saveRecipe(e){
+  e.preventDefault();
+  if (!sb) { showToast("Supabaseが未設定です", true); return; }
+
+  const saveBtn = document.getElementById("saveBtn");
+  saveBtn.disabled = true;
+  saveBtn.textContent = "保存中...";
+
+  try {
+    const ingredients = [...document.querySelectorAll("#ingredientRows .ing-row")]
+      .map(row => ({
+        name: row.querySelector(".ing-name").value.trim(),
+        amount: row.querySelector(".ing-amount").value.trim(),
+        unit: row.querySelector(".ing-unit").value.trim(),
+      }))
+      .filter(i => i.name);
+
+    const steps = document.getElementById("stepsInput").value
+      .split("\n").map(s => s.trim()).filter(Boolean);
+
+    const tags = document.getElementById("tagsInput").value
+      .split(",").map(t => t.trim()).filter(Boolean);
+
+    const payload = {
+      title: document.getElementById("titleInput").value.trim(),
+      category: document.getElementById("categoryInput").value.trim() || null,
+      tags,
+      servings: Number(document.getElementById("servingsInput").value) || null,
+      cook_time: Number(document.getElementById("cookTimeInput").value) || null,
+      ingredients,
+      steps,
+    };
+
+    if (pendingImageFile) {
+      payload.image_url = await uploadImage(pendingImageFile);
+    }
+
+    const id = document.getElementById("recipeId").value;
+    if (id) {
+      const { error } = await sb.from("recipes").update(payload).eq("id", id);
+      if (error) throw error;
+      showToast("更新しました");
+    } else {
+      const { error } = await sb.from("recipes").insert(payload);
+      if (error) throw error;
+      showToast("登録しました");
+    }
+    closeForm();
+    await loadRecipes();
+  } catch (err) {
+    showToast("保存に失敗しました: " + err.message, true);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "保存する";
+  }
+}
+
+async function deleteRecipe(id){
+  if (!confirm("このレシピを削除しますか？")) return;
+  const { error } = await sb.from("recipes").delete().eq("id", id);
+  if (error) { showToast("削除に失敗しました: " + error.message, true); return; }
+  selectedIds.delete(id);
+  showToast("削除しました");
+  document.getElementById("detailOverlay").classList.add("hidden");
+  updateFloatBar();
+  await loadRecipes();
+}
+
+/* ================= 詳細モーダル ================= */
+function openDetail(id){
+  const r = recipes.find(x => x.id === id);
+  if (!r) return;
+  const img = r.image_url ? `<img class="detail-img" src="${escapeHtml(r.image_url)}" alt="${escapeHtml(r.title)}">` : "";
+  const ing = (r.ingredients || []).map(i =>
+    `<li><span>${escapeHtml(i.name)}</span><span>${escapeHtml(i.amount)} ${escapeHtml(i.unit)}</span></li>`
+  ).join("");
+  const steps = (r.steps || []).map(s => `<li>${escapeHtml(s)}</li>`).join("");
+  const tags = (r.tags || []).map(t => `<span class="tag">#${escapeHtml(t)}</span>`).join(" ");
+
+  document.getElementById("detailContent").innerHTML = `
+    ${img}
+    <h2>${escapeHtml(r.title)}</h2>
+    <div class="detail-meta">
+      ${r.category ? `<span>${escapeHtml(r.category)}</span>` : ""}
+      ${r.cook_time ? `<span>⏱ ${r.cook_time}分</span>` : ""}
+      ${r.servings ? `<span>👥 ${r.servings}人分</span>` : ""}
+    </div>
+    <div class="card-tags">${tags}</div>
+    <div class="detail-section">
+      <h4>材料</h4>
+      <ul class="ing-list">${ing || "<li>未登録</li>"}</ul>
+    </div>
+    <div class="detail-section">
+      <h4>作り方</h4>
+      <ol class="steps-list">${steps || "<li>未登録</li>"}</ol>
+    </div>
+  `;
+  document.getElementById("editFromDetailBtn").dataset.id = r.id;
+  document.getElementById("deleteFromDetailBtn").dataset.id = r.id;
+  document.getElementById("detailOverlay").classList.remove("hidden");
+}
+
+/* ================= 買い物リスト ================= */
+function openShoppingList(){
+  const list = [];
+  selectedIds.forEach(id => {
+    const r = recipes.find(x => x.id === id);
+    if (r) (r.ingredients || []).forEach(i => list.push(i));
+  });
+
+  const merged = {};
+  list.forEach(i => {
+    const key = (i.name || "").trim().toLowerCase() + "|" + (i.unit || "").trim().toLowerCase();
+    const amountNum = parseFloat(i.amount);
+    if (!merged[key]) {
+      merged[key] = { name: i.name, unit: i.unit, amounts: [], numericSum: 0, hasNumeric: false };
+    }
+    if (!isNaN(amountNum) && /^[\d.]+$/.test((i.amount || "").trim())) {
+      merged[key].numericSum += amountNum;
+      merged[key].hasNumeric = true;
+    } else if (i.amount) {
+      merged[key].amounts.push(i.amount);
+    }
+  });
+
+  const items = Object.values(merged).map(m => {
+    const parts = [];
+    if (m.hasNumeric) parts.push(String(m.numericSum));
+    parts.push(...m.amounts);
+    const amountText = parts.length ? parts.join(" + ") : "";
+    return `${m.name} ${amountText} ${m.unit || ""}`.trim();
+  });
+
+  const ul = document.getElementById("shopList");
+  ul.innerHTML = items.length
+    ? items.map((text, idx) =>
+        `<li data-idx="${idx}"><input type="checkbox" class="shop-cb"><span>${escapeHtml(text)}</span></li>`
+      ).join("")
+    : `<li>選択したレシピに材料が登録されていません</li>`;
+
+  ul.querySelectorAll(".shop-cb").forEach(cb => {
+    cb.addEventListener("change", () => cb.closest("li").classList.toggle("checked", cb.checked));
+  });
+
+  document.getElementById("shopOverlay").classList.remove("hidden");
+}
+
+function copyShoppingList(){
+  const items = [...document.querySelectorAll("#shopList li span")].map(s => s.textContent);
+  navigator.clipboard.writeText(items.join("\n"))
+    .then(() => showToast("コピーしました"))
+    .catch(() => showToast("コピーに失敗しました", true));
+}
+
+/* ================= イベント登録 ================= */
+document.getElementById("searchInput").addEventListener("input", (e) => {
+  searchQuery = e.target.value;
+  renderGrid();
+});
+document.getElementById("newRecipeBtn").addEventListener("click", () => openForm(null));
+document.getElementById("closeFormBtn").addEventListener("click", closeForm);
+document.getElementById("cancelFormBtn").addEventListener("click", closeForm);
+document.getElementById("recipeForm").addEventListener("submit", saveRecipe);
+document.getElementById("addIngredientBtn").addEventListener("click", () => addIngredientRow());
+
+document.getElementById("imageInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingImageFile = file;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = document.getElementById("imgPreview");
+    img.src = ev.target.result;
+    img.classList.remove("hidden");
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById("closeDetailBtn").addEventListener("click", () =>
+  document.getElementById("detailOverlay").classList.add("hidden"));
+document.getElementById("editFromDetailBtn").addEventListener("click", (e) => {
+  document.getElementById("detailOverlay").classList.add("hidden");
+  openForm(e.target.dataset.id);
+});
+document.getElementById("deleteFromDetailBtn").addEventListener("click", (e) =>
+  deleteRecipe(e.target.dataset.id));
+
+document.getElementById("clearSelectBtn").addEventListener("click", () => {
+  selectedIds.clear();
+  updateFloatBar();
+  renderGrid();
+});
+document.getElementById("makeShopBtn").addEventListener("click", openShoppingList);
+document.getElementById("closeShopBtn").addEventListener("click", () =>
+  document.getElementById("shopOverlay").classList.add("hidden"));
+document.getElementById("copyShopBtn").addEventListener("click", copyShoppingList);
+document.getElementById("printShopBtn").addEventListener("click", () => window.print());
+
+[document.getElementById("formOverlay"), document.getElementById("detailOverlay"), document.getElementById("shopOverlay")]
+  .forEach(overlay => {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.classList.add("hidden");
+    });
+  });
+
+/* ================= 起動 ================= */
+(function start(){
+  const ok = initSupabase();
+  if (ok) loadRecipes();
+})();
+</script>
+</body>
+</html>
